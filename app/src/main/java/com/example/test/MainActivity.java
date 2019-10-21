@@ -26,6 +26,7 @@ import com.example.test.util.FileUtil;
 public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_READ_PHONE_STATE = 1;
+    private static final int JOB_ID = 2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,10 +39,6 @@ public class MainActivity extends AppCompatActivity {
             startService();
         }
         initView();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-   //         startJobScheduler();
-        }
 
     }
 
@@ -58,6 +55,9 @@ public class MainActivity extends AppCompatActivity {
                     if (flag) {
                         Toast.makeText(getApplicationContext(), "登录成功，开始收集发送数据...", Toast.LENGTH_SHORT).show();
                         startService();
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            startJobScheduler();
+                        }
                     } else {
                         Toast.makeText(getApplicationContext(), "登录失败，请重试", Toast.LENGTH_SHORT).show();
                     }
@@ -72,15 +72,13 @@ public class MainActivity extends AppCompatActivity {
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     public void startJobScheduler() {
-        JobScheduler jobScheduler = (JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE);
-        jobScheduler.cancelAll();
-        JobInfo.Builder builder = new JobInfo.Builder(1, new ComponentName(getPackageName(), ProtectJobService.class.getName()));
-        builder.setPersisted(true);
-        builder.setPeriodic(15*601000); // 十五分钟执行一次
-        int schedule = jobScheduler.schedule(builder.build());
-        if (schedule <= 0) {
-            System.out.println("error!!!!!!!!!!!!!!!");
-        }
+        JobInfo.Builder builder = new JobInfo.Builder(JOB_ID, new ComponentName(getPackageName(), ProtectJobService.class.getName()));
+        // 间隔时间 最短15min
+        builder.setPeriodic(15 * 60 * 1000);
+        builder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
+        JobScheduler tm = (JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE);
+        tm.cancel(JOB_ID);
+        tm.schedule(builder.build());
     }
 
     public void requestPermission() {

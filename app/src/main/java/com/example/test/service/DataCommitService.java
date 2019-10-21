@@ -22,15 +22,23 @@ import java.util.List;
 
 /**
  * 考虑的保活策略
- * 1、双进程保护 （5.0以上采取回收进程组策略，主进程死了，他启动的子进程也会被杀放弃。）
- * 2、静态广播监听系统广播唤醒服务，比如网络状态改变 （高版本上谷歌已经不太支持静态广播了，很多都不能用了，idea也会提示放弃使用）
- * 3、后台无声音乐（不友好）
+ * 1、双进程保护 （5.0以上采取回收进程组策略，主进程死了，他启动的子进程也会被杀。）
+ * 2、静态广播监听系统广播唤醒服务，比如网络状态改变 （高版本上谷歌已经不太支持静态广播了，很多都不能用了，idea也会提示deprecated）
+ * 3、后台无声音乐（应该是可行的，比如网易云音乐如果正在播放，后台清理不会清理掉服务，事实上app也不会清理掉。但如果是非音乐类app就不适合使用，不友好）
  * 4、前台服务（可行，正常的保活方法）
- * 5、JobScheduler（android9.0上最短定时间隔时间是15分钟，我试过。。好像只能执行一次，不太清楚原因）
+ * 5、JobScheduler（官方推荐）
+ * 6、关联app拉活（条件不足）
+ * 7、厂商白名单（不存在的）
+ * 8、
  *
  * 项目采用的保活策略
  * 1、设置为前台服务
- * 2、jobschedulerservice定时检查服务是否开启
+ * 2、jobschedulerservice定时检查服务是否开启，15分钟间隔周期性检查（android9.0上最短定时间隔时间是15分钟，我试过。。好像只能执行一次，不太清楚原因）
+ *
+ *
+ * 测试结果（Android9.0）：
+ * 按下返回、切到后台，息屏状态下服务一直存在
+ * 但后台清理和手动杀死app，服务会关闭，唤醒不了
  */
 public class DataCommitService extends Service {
 
@@ -151,6 +159,12 @@ public class DataCommitService extends Service {
                 .setLargeIcon (BitmapFactory.decodeResource (getResources (), R.mipmap.ic_launcher))
                 .build ();
         startForeground (1, notification);
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        // 被kill了尝试重启
+        return START_STICKY;
     }
 
     public interface OnFirstCommitCallback {

@@ -109,4 +109,14 @@ public class InfoCollectHelper {
                 ((ip >> 16) & 0xFF) + "." +
                 (ip >> 24 & 0xFF);
     }
+
+    /**
+     * 检查不变信息是否有更新。。。应该只有OSV可能会改变吧？
+     * 没想好怎么写
+     *
+     * 如果更新了，就得重新发送一次完整数据
+     */
+    public void checkInfoUpdate() {
+
+    }
 }
