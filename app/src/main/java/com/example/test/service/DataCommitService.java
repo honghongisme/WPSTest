@@ -44,8 +44,8 @@ public class DataCommitService extends Service {
 
     private static final String ID="channel_1";
     private static final String NAME="前台服务";
-    // 发送消息的间隔时间
-    private static final int INTERVAL_TIME = 8000;
+    // 发送消息的间隔时间 5分钟
+    private static final int INTERVAL_TIME = 5 * 60 * 1000;
 
     private InfoCollectHelper mInfoCollectHelper;
     private Model mModel;
