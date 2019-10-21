@@ -1,8 +1,6 @@
-package com.example.test;
+package com.example.test.util;
 
-import android.Manifest;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
@@ -11,7 +9,7 @@ import android.os.Build;
 import android.telephony.TelephonyManager;
 
 import com.example.test.entity.Info;
-import com.example.test.util.FileUtil;
+import com.example.test.entity.VariableInfo;
 
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -50,22 +48,19 @@ public class InfoCollectHelper {
         return mInstance;
     }
 
-    public Info getInfo() {
-        Info info = new Info();
-        info.setIMEI(getIMEI());
-        info.setOSV(getOSV());
+    public VariableInfo getInfo() {
+        VariableInfo info = new VariableInfo();
         info.setIP(getIP());
-        info.setPackageName(getPackageName());
         info.setUserName(getUsername());
         info.setTime(getTime());
         return info;
     }
 
-    private String getIMEI() {
+    public String getIMEI() {
         return mTelephonyManager.getSimSerialNumber();
     }
 
-    private String getOSV() {
+    public String getOSV() {
         return Build.VERSION.RELEASE;
     }
 
@@ -96,7 +91,7 @@ public class InfoCollectHelper {
         return null;
     }
 
-    private String getPackageName() {
+    public String getPackageName() {
         return mContext.getPackageName();
     }
 

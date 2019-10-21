@@ -23,7 +23,6 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning">
 
-
         <service
             android:name=".service.DataCommitService"
             android:enabled="true"

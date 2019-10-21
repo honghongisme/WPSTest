@@ -6,6 +6,8 @@ import android.database.sqlite.SQLiteDatabase;
 
 import com.example.test.entity.Info;
 import com.example.test.entity.ResponseBody;
+import com.example.test.entity.VariableInfo;
+import com.example.test.service.DataCommitService;
 import com.google.gson.Gson;
 
 import org.jetbrains.annotations.NotNull;
@@ -22,10 +24,7 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 import static com.example.test.database.DatabaseHelper.DB_NAME;
-import static com.example.test.database.DatabaseHelper.IMEI;
 import static com.example.test.database.DatabaseHelper.IP;
-import static com.example.test.database.DatabaseHelper.OSV;
-import static com.example.test.database.DatabaseHelper.PACKAGE_NAME;
 import static com.example.test.database.DatabaseHelper.TABLE_NAME;
 import static com.example.test.database.DatabaseHelper.TIME;
 import static com.example.test.database.DatabaseHelper.USERNAME;
@@ -41,17 +40,14 @@ public class Model {
         mSQLiteDatabase = new DatabaseHelper(context, DB_NAME, null, VERSION).getWritableDatabase();
     }
 
-    public List<Info> getInfoList() {
+    public List<VariableInfo> getInfoList() {
         String sql = "select * from " + TABLE_NAME;
         Cursor cursor = mSQLiteDatabase.rawQuery(sql, null);
-        List<Info> list = new ArrayList<>();
-        Info info = null;
+        List<VariableInfo> list = new ArrayList<>();
+        VariableInfo info = null;
         while (cursor.moveToNext()) {
-            info = new Info();
-            info.setIMEI(cursor.getString(cursor.getColumnIndex(IMEI)));
-            info.setOSV(cursor.getString(cursor.getColumnIndex(OSV)));
+            info = new VariableInfo();
             info.setIP(cursor.getString(cursor.getColumnIndex(IP)));
-            info.setPackageName(cursor.getString(cursor.getColumnIndex(PACKAGE_NAME)));
             info.setUserName(cursor.getString(cursor.getColumnIndex(USERNAME)));
             info.setTime(cursor.getString(cursor.getColumnIndex(TIME)));
             list.add(info);
@@ -59,32 +55,38 @@ public class Model {
         return list;
     }
 
-    public void saveInfo(Info info) {
+    public void saveInfo(VariableInfo info) {
         String sql = "insert into " + TABLE_NAME + " values('"
-                + info.getIMEI() + "', '"
-                + info.getOSV() + "', '"
                 + info.getIP() + "', '"
-                + info.getPackageName() + "', '"
                 + info.getUserName() + "', '"
                 + info.getTime() + "')";
         mSQLiteDatabase.execSQL(sql);
     }
 
-    public void deleteInfo(List<Info> list) {
-        mSQLiteDatabase.beginTransaction();
-        String sql;
-        for (Info info : list) {
-            sql = "delete from " + TABLE_NAME + " where " + TIME + " = '" + info.getTime() + "'";
+    public <T> void delete(T data) {
+        if (data instanceof Info) {
+            Info info = (Info)data;
+            String sql = "delete from " + TABLE_NAME + " where " + TIME + " = '" + info.getTime() + "'";
             mSQLiteDatabase.execSQL(sql);
+        } else if (data instanceof List){
+            List<VariableInfo> list = (List<VariableInfo>) data;
+            mSQLiteDatabase.beginTransaction();
+            String sql;
+            for (VariableInfo info : list) {
+                sql = "delete from " + TABLE_NAME + " where " + TIME + " = '" + info.getTime() + "'";
+                mSQLiteDatabase.execSQL(sql);
+            }
+            mSQLiteDatabase.setTransactionSuccessful();
+            mSQLiteDatabase.endTransaction();
         }
-        mSQLiteDatabase.setTransactionSuccessful();
-        mSQLiteDatabase.endTransaction();
+
     }
 
-    public void commit(final List<Info> list) {
-        String data = new Gson().toJson(list);
+    public <T> void commit(final T data, final DataCommitService.OnFirstCommitCallback callback) {
+        String jsonData = new Gson().toJson(data);
+        System.out.println(jsonData);
         FormBody.Builder formBody = new FormBody.Builder();
-        formBody.add("data", data);
+        formBody.add("data", jsonData);
         Request request = new Request.Builder()
                 .url("http://www.mockhttp.cn/mock/wpstest")
                 .post(formBody.build())
@@ -92,7 +94,12 @@ public class Model {
         mOkHttpClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(@NotNull Call call, @NotNull IOException e) {
-                System.out.println("onFailure!!!!!!!!!!! " + e.getMessage());
+                if (callback != null) {
+                    callback.onFailed();
+                    System.out.println("首次onFailure!!!!!!!!!!! " + e.getMessage());
+                } else {
+                    System.out.println("onFailure!!!!!!!!!!! " + e.getMessage());
+                }
             }
 
             @Override
@@ -100,12 +107,23 @@ public class Model {
                 String resp = response.body().string();
                 ResponseBody responseBody = new Gson().fromJson(resp, ResponseBody.class);
                 if (responseBody.getCode() == 200 && "success".equals(responseBody.getMsg())) {
-                    System.out.println("提交成功！！！！！！！！");
-                    deleteInfo(list);
+                    if (callback != null) {
+                        callback.onSuccess();
+                        System.out.println("首次提交成功！！！！！！！！");
+                    } else {
+                        System.out.println("提交成功！！！！！！！！");
+                    }
+                    delete(data);
                 } else {
-                    System.out.println("提交失败!!!!!!!!!!!" + response.toString());
+                    if (callback != null) {
+                        callback.onFailed();
+                        System.out.println("首次提交失败!!!!!!!!!!!" + response.toString());
+                    } else {
+                        System.out.println("提交失败!!!!!!!!!!!" + response.toString());
+                    }
                 }
             }
         });
     }
+
 }
