@@ -9,6 +9,7 @@ import com.example.test.entity.ResponseBody;
 import com.example.test.entity.VariableInfo;
 import com.example.test.service.DataCommitService;
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -34,6 +35,7 @@ public class Model {
 
     private OkHttpClient mOkHttpClient;
     private SQLiteDatabase mSQLiteDatabase;
+    private static final String URL = "http://www.mockhttp.cn/mock/wpstest";
 
     public Model(Context context) {
         mOkHttpClient = new OkHttpClient();
@@ -88,7 +90,7 @@ public class Model {
         FormBody.Builder formBody = new FormBody.Builder();
         formBody.add("data", jsonData);
         Request request = new Request.Builder()
-                .url("http://www.mockhttp.cn/mock/wpstest")
+                .url(URL)
                 .post(formBody.build())
                 .build();
         mOkHttpClient.newCall(request).enqueue(new Callback() {
@@ -105,7 +107,19 @@ public class Model {
             @Override
             public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
                 String resp = response.body().string();
-                ResponseBody responseBody = new Gson().fromJson(resp, ResponseBody.class);
+                // 如果url访问不到(我测试是url去掉尾部的t，应用会崩溃，报JsonSyntaxException异常)，response返回的结构就不是封装的responseBody了,
+                ResponseBody responseBody = null;
+                try {
+                    responseBody = new Gson().fromJson(resp, ResponseBody.class);
+                } catch (JsonSyntaxException e) {
+                    if (callback != null) {
+                        callback.onFailed();
+                        System.out.println("首次提交失败!!!!!!!!!!!" + response.toString());
+                    } else {
+                        System.out.println("提交失败!!!!!!!!!!!" + response.toString());
+                    }
+                    return;
+                }
                 if (responseBody.getCode() == 200 && "success".equals(responseBody.getMsg())) {
                     if (callback != null) {
                         callback.onSuccess();

@@ -26,7 +26,12 @@
         <service
             android:name=".service.DataCommitService"
             android:enabled="true"
-            android:exported="true" />
+            android:exported="true">
+<!--            <intent-filter>-->
+<!--                <action android:name="com.example.test.service.DataCommitService"/>-->
+<!--            </intent-filter>-->
+
+        </service>
 
         <service android:name=".service.ProtectJobService"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
