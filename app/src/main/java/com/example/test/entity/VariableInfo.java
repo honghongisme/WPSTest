@@ -7,23 +7,23 @@ package com.example.test.entity;
 public class VariableInfo {
 
     private String IP;
-    private String UserName;
     private String Time;
+    private String ServerResId;
 
     public String getIP() {
         return IP;
     }
 
+    public String getServerResId() {
+        return ServerResId;
+    }
+
+    public void setServerResId(String serverResId) {
+        ServerResId = serverResId;
+    }
+
     public void setIP(String IP) {
         this.IP = IP;
-    }
-
-    public String getUserName() {
-        return UserName;
-    }
-
-    public void setUserName(String userName) {
-        UserName = userName;
     }
 
     public String getTime() {

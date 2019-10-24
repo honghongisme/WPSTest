@@ -9,11 +9,15 @@ import androidx.annotation.Nullable;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     public static final String DB_NAME = "test_db";
-    public static final String TABLE_NAME = "info";
+    public static final String TABLE_NAME_INFO = "info";
+    public static final String TABLE_NAME_USER = "user";
     public static final int VERSION = 1;
     public static final String IP = "IP";
     public static final String USERNAME = "username";
     public static final String TIME = "time";
+    // 标识后端数据库里不变数据(传递完整数据时后台生成返回的)
+    public static final String SERVER_RES_ID = "resID";
+
 
 
 
@@ -28,10 +32,17 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     @Override
     public void onCreate(SQLiteDatabase sqLiteDatabase) {
-        String sql = "create table " + TABLE_NAME + " ("
+        // 采集信息表
+        String sql = "create table " + TABLE_NAME_INFO + " ("
                 + IP + " text, "
-                + USERNAME + " text, "
-                + TIME + " text primary key)";
+                + SERVER_RES_ID + " text primary key, "
+                + TIME + " text)";
+        sqLiteDatabase.execSQL(sql);
+
+        // 注册过服务的用户表
+        sql = "create table " + TABLE_NAME_USER + "("
+                + SERVER_RES_ID + " text, "
+                + USERNAME + " text primary key)";
         sqLiteDatabase.execSQL(sql);
     }
 

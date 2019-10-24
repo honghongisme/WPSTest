@@ -16,7 +16,7 @@
         android:layout_marginBottom="30dp"
         android:hint="@string/username_input_hint"
         android:id="@+id/username"
-        android:text="testuser"/>
+        android:text="com.example.test.mainthread_username"/>
 
     <Button
         android:layout_width="wrap_content"
@@ -24,6 +24,16 @@
         android:text="@string/login"
         android:id="@+id/login"/>
 
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="线程1注册服务"
+        android:id="@+id/button1"/>
 
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="线程2注册服务"
+        android:id="@+id/button2"/>
 
 </LinearLayout>

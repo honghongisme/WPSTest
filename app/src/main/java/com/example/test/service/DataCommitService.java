@@ -8,17 +8,19 @@ import android.content.Intent;
 import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.RemoteException;
 
 import androidx.annotation.RequiresApi;
 
-import com.example.test.entity.VariableInfo;
-import com.example.test.util.FileUtil;
-import com.example.test.util.InfoCollectHelper;
+import com.example.test.IInfoAidlInterface;
+import com.example.test.IServiceRegisterCallback;
 import com.example.test.R;
+import com.example.test.entity.VariableInfo;
+import com.example.test.util.InfoCollectHelper;
 import com.example.test.database.Model;
-import com.example.test.entity.Info;
 
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 考虑的保活策略
@@ -49,35 +51,87 @@ public class DataCommitService extends Service {
 
     private InfoCollectHelper mInfoCollectHelper;
     private Model mModel;
+    private Thread mTask;
 
-    // 是否提交完整数据包
-    private boolean mIsCommitEntireData;
-    private Boolean mIsCommitEntireDataSuccess = null;
+    private ConcurrentHashMap<String, String> mCurrentRegisterUser; // <username, serverResId>
 
+    private IInfoAidlInterface.Stub stub = new IInfoAidlInterface.Stub() {
+        @Override
+        public void register(final String packageName, final String username, final IServiceRegisterCallback callback) throws RemoteException {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    if (mCurrentRegisterUser.get(username) != null) { // 服务正在采集该用户的数据
+                        try {
+                            callback.onFailed(packageName + " ：" + username + "正在进行服务");
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                    } else {
+                        String id = mModel.getUserId(username);
+                        if (id != null) { // 之前已经注册，表里已经有该用户的数据
+                            mCurrentRegisterUser.put(username, id);
+                            try {
+                                callback.onSuccess(packageName + " ：" + username + "登录成功, 开始采集数据");
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
+                        } else { // 从未注册过服务
+                            // 发送不变数据
+                            mModel.commit(mInfoCollectHelper.getConstantInfo(username, packageName), new OnFirstCommitCallback() {
+                                @Override
+                                public void onSuccess(String resId) {
+                                    mModel.createUser(username, resId);
+                                    mCurrentRegisterUser.put(username, resId);
+                                    try {
+                                        callback.onSuccess(packageName + " ：" + username + "注册成功，开始采集数据");
+                                    } catch (RemoteException e) {
+                                        e.printStackTrace();
+                                    }
+                                }
+
+                                @Override
+                                public void onFailed() {
+
+                                }
+                            });
+                        }
+                    }
+                }
+            }).start();
+        }
+
+        @Override
+        public void unRegister(IServiceRegisterCallback callback) throws RemoteException {
+
+        }
+    };
 
     @Override
     public void onCreate() {
         super.onCreate();
+        System.out.println("onCreate!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 
+        mCurrentRegisterUser = new ConcurrentHashMap<>();
         mModel = new Model(this);
         mInfoCollectHelper = InfoCollectHelper.getInstance(this);
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             startForeGroundService();
         }
-        if (FileUtil.getBaseInfo(this).getIMEI() != null) {
-            mIsCommitEntireData = false;
-        } else {
-            // 保存不变数据
-            FileUtil.saveBaseInfo(this, mInfoCollectHelper.getIMEI(), mInfoCollectHelper.getOSV(), mInfoCollectHelper.getPackageName());
-            mIsCommitEntireData = true;
-        }
         startTask();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
-        return null;
+        System.out.println("onBind!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        return stub;
+    }
+
+    @Override
+    public boolean onUnbind(Intent intent) {
+        System.out.println("onUnbind!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        return super.onUnbind(intent);
     }
 
     /**
@@ -88,63 +142,34 @@ public class DataCommitService extends Service {
      * 3、数据整合成list一并提交
      * 4、只有后台返回success时才算提交成功，删除数据库里本次提交的内容
      *
-     * 为了避免数据冗余，只提交一次完整数据（当本地没有存储不变信息时） IMEI + OSV + PackageName + IP + username + time
-     * 接下来的请求都只提交数据中可变的部分 IP + username + time
+     * 为了避免数据冗余，只提交一次不变数据（第一次register时） IMEI + OSV + PackageName + username。获取到后台关联的serverResId
+     * 接下来的请求都只提交数据中可变的部分 IP +  time + serverResId
      * 需要后台支持
      */
     private void startTask() {
-        new Thread(new Runnable() {
+        mTask = new Thread(new Runnable() {
             @Override
             public void run() {
                 while (true) {
                     // 查询数据库里未提交的数据
-                    final List<VariableInfo> list = mModel.getInfoList();
-                    // 获取本次数据
-                    VariableInfo variableInfo = mInfoCollectHelper.getInfo();
-                    if (variableInfo.getUserName() != null) {
+                    final List<VariableInfo> list = mModel.getDatabaseInfoList();
+                    for (String resId : mCurrentRegisterUser.values()) {
+                        VariableInfo data = mInfoCollectHelper.getVariableInfo(resId);
                         // 保存本次数据
-                        mModel.saveInfo(variableInfo);
-                        list.add(variableInfo);
+                        mModel.saveInfo(data);
+                        list.add(data);
                     }
-                    if (list.size() != 0) {
-                        // 如果还没提交过，就提交一次完整数据，取第一条数据
-                        if (mIsCommitEntireData) {
-                            Info info = FileUtil.getBaseInfo(DataCommitService.this);
-                            info.setIP(list.get(0).getIP());
-                            info.setTime(list.get(0).getTime());
-                            info.setUserName(list.get(0).getUserName());
-                            mModel.commit(info, new OnFirstCommitCallback() {
-                                @Override
-                                public void onSuccess() {
-                                    mIsCommitEntireData = false;
-                                    mIsCommitEntireDataSuccess = true;
-                                    list.remove(0);
-                                }
-
-                                @Override
-                                public void onFailed() {
-                                    mIsCommitEntireDataSuccess = false;
-                                }
-                            });
-                        }
-                        // 如果发送完整数据失败，要重试即继续while循环，直到发送成功才能继续发送接下来的数据
-                        // 什么时候成功？
-                        // mIsCommitEntireDataSuccess == null表示以前发过完整数据，服务不需要发了，只需要发接下来的可变数据。
-                        // mIsCommitEntireDataSuccess表示发了且成功了，继续发送可变数据
-                        if (list.size() != 0 && (mIsCommitEntireDataSuccess == null || mIsCommitEntireDataSuccess)) {
-                            // 发送可变数据
-                            mModel.commit(list, null);
-                        }
-                        try {
-                            Thread.sleep(INTERVAL_TIME);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
+                    mModel.commit(list, null);
+                    try {
+                        Thread.sleep(INTERVAL_TIME);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
                     }
                 }
 
             }
-        }).start();
+        });
+        mTask.start();
     }
 
     @RequiresApi(api = Build.VERSION_CODES.O)
@@ -161,14 +186,8 @@ public class DataCommitService extends Service {
         startForeground (1, notification);
     }
 
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        // 被kill了尝试重启
-        return START_STICKY;
-    }
-
     public interface OnFirstCommitCallback {
-        void onSuccess();
+        void onSuccess(String resId);
         void onFailed();
     }
 }

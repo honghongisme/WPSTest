@@ -7,7 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.text.TextUtils;
 
-import java.util.ArrayList;
+import com.example.test.service.DataCommitService;
 
 public class ProtectJobService extends JobService {
 

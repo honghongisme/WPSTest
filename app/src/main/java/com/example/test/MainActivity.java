@@ -11,22 +11,27 @@ import android.app.job.JobScheduler;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.IBinder;
+import android.os.RemoteException;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
-import com.example.test.service.DataCommitService;
 import com.example.test.service.ProtectJobService;
-import com.example.test.util.FileUtil;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_READ_PHONE_STATE = 1;
     private static final int JOB_ID = 2;
+
+    private IInfoAidlInterface mBinder;
+
+    private EditText mUsernameEt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,40 +39,76 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         requestPermission();
-
-        if (FileUtil.getUser(this) != null) {
-            startService();
-        }
         initView();
-
     }
 
     private void initView() {
         Button loginBtn = findViewById(R.id.login);
-        final EditText usernameEt = findViewById(R.id.username);
+        mUsernameEt = findViewById(R.id.username);
         loginBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (usernameEt.getText().toString().isEmpty()) {
+                if (mUsernameEt.getText().toString().isEmpty()) {
                     Toast.makeText(getApplicationContext(), "请输入用户名", Toast.LENGTH_SHORT).show();
                 } else {
-                    boolean flag = FileUtil.saveUser(getApplicationContext(), usernameEt.getText().toString());
-                    if (flag) {
-                        Toast.makeText(getApplicationContext(), "登录成功，开始收集发送数据...", Toast.LENGTH_SHORT).show();
-                        startService();
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            startJobScheduler();
-                        }
-                    } else {
-                        Toast.makeText(getApplicationContext(), "登录失败，请重试", Toast.LENGTH_SHORT).show();
-                    }
+                    startService(mUsernameEt.getText().toString());
                 }
+            }
+        });
+
+        Button button1 = findViewById(R.id.button1);
+        button1.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startService("com.example.test.thread1_username");
+            }
+        });
+
+        Button button2 = findViewById(R.id.button2);
+        button2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startService("com.example.test.thread2_username");
             }
         });
     }
 
-    public void startService() {
-        startService(new Intent(MainActivity.this, DataCommitService.class));
+    /**
+     * 注册服务的最小单位是线程
+     * @param username
+     */
+    public void startService(final String username) {
+        // action必须和aidl文件一个包名下
+        Intent intent = new Intent("com.example.test.remoteDataCommitService");
+        intent.setPackage("com.example.test");
+        ServiceConnection connection = new ServiceConnection() {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder service) {
+                System.out.println("onServiceConnected");
+                mBinder = IInfoAidlInterface.Stub.asInterface(service);
+                try {
+                    mBinder.register(getPackageName(), username, new IServiceRegisterCallback.Stub() {
+                        @Override
+                        public void onSuccess(String msg) throws RemoteException {
+                            System.out.println("IServiceRegisterCallback onSuccess msg = " + msg);
+                        }
+
+                        @Override
+                        public void onFailed(String msg) throws RemoteException {
+                            System.out.println("IServiceRegisterCallback onFailed msg = " + msg);
+                        }
+                    });
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+                System.out.println("onServiceDisconnected" + name.toString());
+            }
+        };
+        bindService(intent, connection, Context.BIND_AUTO_CREATE);
     }
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)

@@ -25,11 +25,11 @@
 
         <service
             android:name=".service.DataCommitService"
-            android:enabled="true"
-            android:exported="true">
-<!--            <intent-filter>-->
-<!--                <action android:name="com.example.test.service.DataCommitService"/>-->
-<!--            </intent-filter>-->
+            android:exported="true"
+            android:process=":remote">
+            <intent-filter>
+                <action android:name="com.example.test.remoteDataCommitService"/>
+            </intent-filter>
 
         </service>
 

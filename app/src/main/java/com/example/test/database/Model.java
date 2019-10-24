@@ -4,7 +4,6 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
-import com.example.test.entity.Info;
 import com.example.test.entity.ResponseBody;
 import com.example.test.entity.VariableInfo;
 import com.example.test.service.DataCommitService;
@@ -15,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import okhttp3.Call;
@@ -24,12 +24,12 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
-import static com.example.test.database.DatabaseHelper.DB_NAME;
 import static com.example.test.database.DatabaseHelper.IP;
-import static com.example.test.database.DatabaseHelper.TABLE_NAME;
+import static com.example.test.database.DatabaseHelper.SERVER_RES_ID;
+import static com.example.test.database.DatabaseHelper.TABLE_NAME_INFO;
+import static com.example.test.database.DatabaseHelper.TABLE_NAME_USER;
 import static com.example.test.database.DatabaseHelper.TIME;
 import static com.example.test.database.DatabaseHelper.USERNAME;
-import static com.example.test.database.DatabaseHelper.VERSION;
 
 public class Model {
 
@@ -39,18 +39,32 @@ public class Model {
 
     public Model(Context context) {
         mOkHttpClient = new OkHttpClient();
-        mSQLiteDatabase = new DatabaseHelper(context, DB_NAME, null, VERSION).getWritableDatabase();
+        mSQLiteDatabase = SQLiteDatabaseManager.getInstance(context).getSQLiteDatabase();
     }
 
-    public List<VariableInfo> getInfoList() {
-        String sql = "select * from " + TABLE_NAME;
+    public String getUserId(String name) {
+        String sql = "select " + SERVER_RES_ID + " from " + TABLE_NAME_USER + " where " + USERNAME + " = '" + name + "'";
+        Cursor cursor = mSQLiteDatabase.rawQuery(sql, null);
+        if (cursor.moveToNext()) {
+            return cursor.getString(cursor.getColumnIndex(SERVER_RES_ID));
+        }
+        return null;
+    }
+
+    public void createUser(String username, String id) {
+        String sql = "insert into " + TABLE_NAME_USER + " values('" + id + "', '" + username + "')";
+        mSQLiteDatabase.execSQL(sql);
+    }
+
+    public List<VariableInfo> getDatabaseInfoList() {
+        String sql = "select * from " + TABLE_NAME_INFO;
         Cursor cursor = mSQLiteDatabase.rawQuery(sql, null);
         List<VariableInfo> list = new ArrayList<>();
         VariableInfo info = null;
         while (cursor.moveToNext()) {
             info = new VariableInfo();
             info.setIP(cursor.getString(cursor.getColumnIndex(IP)));
-            info.setUserName(cursor.getString(cursor.getColumnIndex(USERNAME)));
+            info.setServerResId(cursor.getString(cursor.getColumnIndex(SERVER_RES_ID)));
             info.setTime(cursor.getString(cursor.getColumnIndex(TIME)));
             list.add(info);
         }
@@ -58,30 +72,22 @@ public class Model {
     }
 
     public void saveInfo(VariableInfo info) {
-        String sql = "insert into " + TABLE_NAME + " values('"
+        String sql = "insert into " + TABLE_NAME_INFO + " values('"
                 + info.getIP() + "', '"
-                + info.getUserName() + "', '"
+                + info.getServerResId() + "', '"
                 + info.getTime() + "')";
         mSQLiteDatabase.execSQL(sql);
     }
 
-    public <T> void delete(T data) {
-        if (data instanceof Info) {
-            Info info = (Info)data;
-            String sql = "delete from " + TABLE_NAME + " where " + TIME + " = '" + info.getTime() + "'";
+    public void delete(List<VariableInfo> data) {
+        mSQLiteDatabase.beginTransaction();
+        String sql;
+        for (VariableInfo info : data) {
+            sql = "delete from " + TABLE_NAME_INFO + " where " + TIME + " = '" + info.getTime() + "' and " + SERVER_RES_ID + " = '" + info.getServerResId() + "'";
             mSQLiteDatabase.execSQL(sql);
-        } else if (data instanceof List){
-            List<VariableInfo> list = (List<VariableInfo>) data;
-            mSQLiteDatabase.beginTransaction();
-            String sql;
-            for (VariableInfo info : list) {
-                sql = "delete from " + TABLE_NAME + " where " + TIME + " = '" + info.getTime() + "'";
-                mSQLiteDatabase.execSQL(sql);
-            }
-            mSQLiteDatabase.setTransactionSuccessful();
-            mSQLiteDatabase.endTransaction();
         }
-
+        mSQLiteDatabase.setTransactionSuccessful();
+        mSQLiteDatabase.endTransaction();
     }
 
     public <T> void commit(final T data, final DataCommitService.OnFirstCommitCallback callback) {
@@ -122,12 +128,13 @@ public class Model {
                 }
                 if (responseBody.getCode() == 200 && "success".equals(responseBody.getMsg())) {
                     if (callback != null) {
-                        callback.onSuccess();
+                        // 这里应该后台返回数据对应的id，为了保证唯一，这里用当前时间模拟
+                        callback.onSuccess(new Date().toString());
                         System.out.println("首次提交成功！！！！！！！！");
                     } else {
+                        delete((List<VariableInfo>) data);
                         System.out.println("提交成功！！！！！！！！");
                     }
-                    delete(data);
                 } else {
                     if (callback != null) {
                         callback.onFailed();

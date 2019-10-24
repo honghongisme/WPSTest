@@ -8,7 +8,7 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.telephony.TelephonyManager;
 
-import com.example.test.entity.Info;
+import com.example.test.entity.ConstantInfo;
 import com.example.test.entity.VariableInfo;
 
 import java.net.Inet4Address;
@@ -23,18 +23,15 @@ import java.util.Locale;
 public class InfoCollectHelper {
 
     private static volatile InfoCollectHelper mInstance;
-    private Context mContext;
 
     private TelephonyManager mTelephonyManager;
     private ConnectivityManager mConnectivityManager;
     private WifiManager mWifiManager;
 
     private InfoCollectHelper(Context context) {
-        mContext = context.getApplicationContext();
-
-        mTelephonyManager = (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
-        mConnectivityManager = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-        mWifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
+        mTelephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+        mConnectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
     }
 
     public static InfoCollectHelper getInstance(Context context) {
@@ -48,11 +45,20 @@ public class InfoCollectHelper {
         return mInstance;
     }
 
-    public VariableInfo getInfo() {
+    public VariableInfo getVariableInfo(String serverResId) {
         VariableInfo info = new VariableInfo();
         info.setIP(getIP());
-        info.setUserName(getUsername());
         info.setTime(getTime());
+        info.setServerResId(serverResId);
+        return info;
+    }
+
+    public ConstantInfo getConstantInfo(String username, String packageName) {
+        ConstantInfo info = new ConstantInfo();
+        info.setIMEI(getIMEI());
+        info.setOSV(getOSV());
+        info.setPackageName(packageName);
+        info.setUserName(username);
         return info;
     }
 
@@ -89,14 +95,6 @@ public class InfoCollectHelper {
             }
         }
         return null;
-    }
-
-    public String getPackageName() {
-        return mContext.getPackageName();
-    }
-
-    private String getUsername() {
-        return FileUtil.getUser(mContext);
     }
 
     private String getTime() {
